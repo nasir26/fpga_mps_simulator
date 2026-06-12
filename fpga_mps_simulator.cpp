@@ -765,6 +765,17 @@ extern "C" void fpga_mps_simulator(
 #pragma HLS INTERFACE m_axi port=bank7    bundle=bank7_axi  offset=slave
 #pragma HLS INTERFACE m_axi port=gate_seq bundle=gate_bundle offset=slave
 
+// All AXI-Lite offset registers and scalars must share one bundle (Vitis rule).
+// Listing each pointer here merges its base-address register into "control".
+#pragma HLS INTERFACE s_axilite port=bank0    bundle=control
+#pragma HLS INTERFACE s_axilite port=bank1    bundle=control
+#pragma HLS INTERFACE s_axilite port=bank2    bundle=control
+#pragma HLS INTERFACE s_axilite port=bank3    bundle=control
+#pragma HLS INTERFACE s_axilite port=bank4    bundle=control
+#pragma HLS INTERFACE s_axilite port=bank5    bundle=control
+#pragma HLS INTERFACE s_axilite port=bank6    bundle=control
+#pragma HLS INTERFACE s_axilite port=bank7    bundle=control
+#pragma HLS INTERFACE s_axilite port=gate_seq bundle=control
 #pragma HLS INTERFACE s_axilite port=num_gates bundle=control
 #pragma HLS INTERFACE s_axilite port=nq        bundle=control
 #pragma HLS INTERFACE s_axilite port=chi_max   bundle=control
