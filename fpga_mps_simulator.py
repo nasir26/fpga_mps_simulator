@@ -145,7 +145,7 @@ _OP2Q: Dict[str, int] = {
 OP_2Q_CONTRACT = 100  # kernel: contract+gate only; host does SVD
 OP_2Q_FULL     = 102  # kernel: contract+gate+JacobiSVD+split (chi ≤ 64)
 
-CHI_FULL_SVD   = 64   # use FPGA Jacobi SVD only when chi ≤ this
+CHI_FULL_SVD   = 0    # SVD always runs on host CPU (Jacobi SVD removed from FPGA)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -588,15 +588,17 @@ def _run_circuit_fpga(circuit, shots: int,
             assert sj == si + 1, \
                 f"Non-adjacent 2q gate after routing: sites {si},{sj}"
 
-            chi_l  = mps.chi_l(si)
-            chi_m  = mps.chi_r(si)
-            chi_r  = mps.chi_r(sj)
-            use_full = max(chi_l, chi_m, chi_r) <= CHI_FULL_SVD
+            chi_l = mps.chi_l(si)
+            chi_m = mps.chi_r(si)
+            chi_r = mps.chi_r(sj)
 
+            # Always OP_2Q_CONTRACT: FPGA contracts+applies gate → writes theta
+            # to theta_off; host reads theta, runs scipy SVD, writes back A_i/A_j.
+            # word [6] carries theta_off so the kernel knows where to write.
             instr = _build_2q_instr(
-                OP_2Q_FULL if use_full else OP_2Q_CONTRACT,
+                OP_2Q_CONTRACT,
                 si, sj, chi_l, chi_m, chi_r,
-                0 if use_full else chi_max,
+                theta_off,    # word [6] = HBM theta workspace offset
                 gate['params'], site_offsets[si], site_offsets[sj],
                 gate['gate_mat']
             ).reshape(1, WORDS_PER_GATE).astype(np.int32)
@@ -606,43 +608,29 @@ def _run_circuit_fpga(circuit, shots: int,
                          instr.nbytes, 0)
             kernel(*banks, gate_bo, 1, nq, chi_max).wait()
 
-            if use_full:
-                chi_new = min(chi_max, chi_l * 2)
-                mps.sites[si] = _hbm_read(
-                    banks, site_offsets[si],
-                    chi_l * 2 * chi_new, (chi_l, 2, chi_new), xrt_mod
-                )
-                mps.sites[sj] = _hbm_read(
-                    banks, site_offsets[sj],
-                    chi_new * 2 * chi_r, (chi_new, 2, chi_r), xrt_mod
-                )
-                if chi_new != chi_m:
-                    site_offsets[si] = alloc.alloc_site(chi_l, chi_new)
-                    site_offsets[sj] = alloc.alloc_site(chi_new, chi_r)
-            else:
-                # Host SVD: read theta, truncate, write back
-                theta = _hbm_read(banks, theta_off,
-                                  chi_l * 4 * chi_r,
-                                  (chi_l * 2, 2 * chi_r), xrt_mod)
-                U, S, Vh = la.svd(theta, full_matrices=False)
-                thresh = svd_cutoff * S[0] if len(S) > 0 else 0.0
-                keep = int(np.clip(np.sum(S > thresh), 1, chi_max))
-                U, S, Vh = U[:, :keep], S[:keep], Vh[:keep, :]
-                nm_ = np.linalg.norm(S)
-                if nm_ > 1e-15:
-                    S /= nm_
-                sqS = np.sqrt(S)
-                chi_new = keep
+            # Host SVD: read theta from workspace, truncate, write A_i / A_j back
+            theta = _hbm_read(banks, theta_off,
+                              chi_l * 4 * chi_r,
+                              (chi_l * 2, 2 * chi_r), xrt_mod)
+            U, S, Vh = la.svd(theta, full_matrices=False)
+            thresh = svd_cutoff * S[0] if len(S) > 0 else 0.0
+            keep = int(np.clip(np.sum(S > thresh), 1, chi_max))
+            U, S, Vh = U[:, :keep], S[:keep], Vh[:keep, :]
+            nm_ = np.linalg.norm(S)
+            if nm_ > 1e-15:
+                S /= nm_
+            sqS = np.sqrt(S)
+            chi_new = keep
 
-                mps.sites[si] = (U * sqS).reshape(chi_l, 2, chi_new)
-                mps.sites[sj] = (sqS[:, None] * Vh).reshape(chi_new, 2, chi_r)
+            mps.sites[si] = (U * sqS).reshape(chi_l, 2, chi_new)
+            mps.sites[sj] = (sqS[:, None] * Vh).reshape(chi_new, 2, chi_r)
 
-                site_offsets[si] = alloc.alloc_site(chi_l, chi_new)
-                site_offsets[sj] = alloc.alloc_site(chi_new, chi_r)
-                _hbm_write(banks, mps.sites[si], site_offsets[si],
-                           chi_l * 2 * chi_new, xrt_mod)
-                _hbm_write(banks, mps.sites[sj], site_offsets[sj],
-                           chi_new * 2 * chi_r, xrt_mod)
+            site_offsets[si] = alloc.alloc_site(chi_l, chi_new)
+            site_offsets[sj] = alloc.alloc_site(chi_new, chi_r)
+            _hbm_write(banks, mps.sites[si], site_offsets[si],
+                       chi_l * 2 * chi_new, xrt_mod)
+            _hbm_write(banks, mps.sites[sj], site_offsets[sj],
+                       chi_new * 2 * chi_r, xrt_mod)
             continue
 
     _flush_1q()

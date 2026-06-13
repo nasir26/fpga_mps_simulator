@@ -325,6 +325,7 @@ static void contract_and_apply_2q(
         fp64 *b4, fp64 *b5, fp64 *b6, fp64 *b7,
         int chi_l, int chi_m, int chi_r,
         int offset_i, int offset_j,
+        int theta_off,    // dedicated HBM workspace — avoids overflowing offset_j
         fp64 gmat[32]) {  // 4x4 complex matrix as [re00,im00, re01,...] row-major
 #pragma HLS INLINE off
 
@@ -387,7 +388,7 @@ LOOP_Q_INNER:
         }
     }
 
-    // Write theta back to HBM at offset_j (overwrite A_j — host will do SVD)
+    // Write theta to dedicated HBM workspace (host reads back to run scipy SVD)
 LOOP_A_WRITE:
     for (int a = 0; a < chi_l && a < CHI_MAX_SVD; a++) {
 #pragma HLS LOOP_TRIPCOUNT min=1 max=64 avg=32
@@ -397,7 +398,7 @@ LOOP_D_WRITE:
             for (int d = 0; d < chi_r && d < CHI_MAX_SVD; d++) {
 #pragma HLS PIPELINE II=8
 #pragma HLS LOOP_TRIPCOUNT min=1 max=64 avg=32
-                int g = offset_j + a*4*chi_r + s*chi_r + d;
+                int g = theta_off + a*4*chi_r + s*chi_r + d;
                 write_amp(b0,b1,b2,b3,b4,b5,b6,b7, g,
                           theta_re[a][s][d], theta_im[a][s][d]);
             }
@@ -405,330 +406,13 @@ LOOP_D_WRITE:
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Jacobi SVD (for chi ≤ CHI_MAX_SVD = 64)
-//  Computes SVD of real matrix M[m×n] where m = chi_l*2, n = 2*chi_r
-//  Returns U[m×k], S[k], V[k×n], chi_new = min(chi_max, k_nonzero)
-//
-//  Classical one-sided Jacobi on M^T M.
-//  For MPS, M is (chi_l*2) × (2*chi_r) real-valued after norm absorption.
-//  This is a simplification: treat the complex matrix as real (sufficient for
-//  circuits with real amplitudes; complex circuits use host LAPACK via opcode 100).
-// ─────────────────────────────────────────────────────────────────────────────
+// SVD is handled entirely on the host (scipy.linalg.svd via LAPACK).
+// The FPGA kernel only contracts + applies the gate → theta, then writes
+// theta to HBM.  The host reads theta, runs SVD, and writes back A_i, A_j.
+// This keeps all double-precision divide/sqrt off the FPGA critical path,
+// which was the root cause of WNS = -149 ns at 300 MHz in the first build.
 
-#define JACOBI_MAX 64
-#define JACOBI_ITERS 20
-
-static void jacobi_svd(
-        fp64 M_re[JACOBI_MAX*2][JACOBI_MAX*2],
-        fp64 M_im[JACOBI_MAX*2][JACOBI_MAX*2],
-        int m, int n,
-        fp64 U_re[JACOBI_MAX*2][JACOBI_MAX],
-        fp64 U_im[JACOBI_MAX*2][JACOBI_MAX],
-        fp64 S[JACOBI_MAX],
-        fp64 Vh_re[JACOBI_MAX][JACOBI_MAX*2],
-        fp64 Vh_im[JACOBI_MAX][JACOBI_MAX*2],
-        int *chi_new, int chi_max) {
-#pragma HLS INLINE off
-
-    // B = M (workspace; square padded to max(m,n))
-    static fp64 B_re[JACOBI_MAX*2][JACOBI_MAX*2];
-    static fp64 B_im[JACOBI_MAX*2][JACOBI_MAX*2];
-    static fp64 V_re[JACOBI_MAX*2][JACOBI_MAX*2];
-    static fp64 V_im[JACOBI_MAX*2][JACOBI_MAX*2];
-#pragma HLS BIND_STORAGE variable=B_re type=ram_2p impl=uram
-#pragma HLS BIND_STORAGE variable=B_im type=ram_2p impl=uram
-#pragma HLS BIND_STORAGE variable=V_re type=ram_2p impl=uram
-#pragma HLS BIND_STORAGE variable=V_im type=ram_2p impl=uram
-
-    int k = (m < n) ? m : n;
-
-    // Initialize B ← M, V ← I
-    for (int i = 0; i < m; i++) {
-#pragma HLS LOOP_TRIPCOUNT min=2 max=128 avg=64
-        for (int j = 0; j < n; j++) {
-#pragma HLS PIPELINE II=1
-            B_re[i][j] = M_re[i][j];
-            B_im[i][j] = M_im[i][j];
-        }
-    }
-    for (int i = 0; i < n; i++) {
-#pragma HLS LOOP_TRIPCOUNT min=2 max=128 avg=64
-        for (int j = 0; j < n; j++) {
-#pragma HLS PIPELINE II=1
-            V_re[i][j] = (i == j) ? 1.0 : 0.0;
-            V_im[i][j] = 0.0;
-        }
-    }
-
-    // One-sided Jacobi on columns of B: repeatedly zero off-diag of B^H B
-    for (int iter = 0; iter < JACOBI_ITERS; iter++) {
-#pragma HLS LOOP_TRIPCOUNT min=20 max=20 avg=20
-        for (int p = 0; p < n-1; p++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=127
-            for (int q = p+1; q < n; q++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=127
-                // Compute B[:,p]^H B[:,q]
-                fp64 alpha_re = 0.0, alpha_im = 0.0;
-                fp64 norm_p = 0.0, norm_q = 0.0;
-                for (int i = 0; i < m; i++) {
-#pragma HLS PIPELINE II=4
-                    fp64 bpr = B_re[i][p], bpi = B_im[i][p];
-                    fp64 bqr = B_re[i][q], bqi = B_im[i][q];
-                    alpha_re += bpr*bqr + bpi*bqi;  // Re(conj(B[:,p])*B[:,q])
-                    alpha_im += bpr*bqi - bpi*bqr;  // Im(...)
-                    norm_p += bpr*bpr + bpi*bpi;
-                    norm_q += bqr*bqr + bqi*bqi;
-                }
-                fp64 tol = 1e-14 * norm_p * norm_q;
-                if (alpha_re*alpha_re + alpha_im*alpha_im < tol)
-                    continue;
-
-                // Compute Jacobi rotation angle
-                fp64 beta = (norm_q - norm_p) * 0.5;
-                fp64 alpha_abs = sqrt(alpha_re*alpha_re + alpha_im*alpha_im);
-                fp64 t = alpha_abs / (fabs(beta) + sqrt(beta*beta + alpha_abs*alpha_abs));
-                if (beta < 0) t = -t;
-                fp64 c = 1.0 / sqrt(1.0 + t*t);
-                fp64 s_val = t * c;
-
-                // Phase factor: e^{-i*arg(alpha)}
-                fp64 ph_r =  alpha_re / alpha_abs;
-                fp64 ph_i = -alpha_im / alpha_abs;
-
-                // Apply rotation to B columns p and q
-                for (int i = 0; i < m; i++) {
-#pragma HLS PIPELINE II=8
-                    fp64 bpr = B_re[i][p], bpi = B_im[i][p];
-                    fp64 bqr = B_re[i][q], bqi = B_im[i][q];
-                    // New col p = c*B[:,p] + s*e^{i*arg} * B[:,q]
-                    fp64 ebqr = ph_r*bqr - ph_i*bqi;  // e^{i*arg} * B[:,q] (re)
-                    fp64 ebqi = ph_r*bqi + ph_i*bqr;  // (im)
-                    B_re[i][p] = c*bpr + s_val*ebqr;
-                    B_im[i][p] = c*bpi + s_val*ebqi;
-                    // New col q = -s*e^{-i*arg} * B[:,p] + c*B[:,q]
-                    fp64 ebpr = ph_r*bpr + ph_i*bpi;  // e^{-i*arg}*B[:,p] (re)
-                    fp64 ebpi = ph_r*bpi - ph_i*bpr;  // (im)
-                    B_re[i][q] = -s_val*ebpr + c*bqr;
-                    B_im[i][q] = -s_val*ebpi + c*bqi;
-                }
-
-                // Apply same rotation to V
-                for (int i = 0; i < n; i++) {
-#pragma HLS PIPELINE II=8
-                    fp64 vpr = V_re[i][p], vpi = V_im[i][p];
-                    fp64 vqr = V_re[i][q], vqi = V_im[i][q];
-                    fp64 evqr = ph_r*vqr - ph_i*vqi;
-                    fp64 evqi = ph_r*vqi + ph_i*vqr;
-                    V_re[i][p] = c*vpr + s_val*evqr;
-                    V_im[i][p] = c*vpi + s_val*evqi;
-                    fp64 evpr = ph_r*vpr + ph_i*vpi;
-                    fp64 evpi = ph_r*vpi - ph_i*vpr;
-                    V_re[i][q] = -s_val*evpr + c*vqr;
-                    V_im[i][q] = -s_val*evpi + c*vqi;
-                }
-            }
-        }
-    }
-
-    // Extract singular values (column norms of B)
-    static fp64 sv[JACOBI_MAX];
-    for (int j = 0; j < k && j < JACOBI_MAX; j++) {
-#pragma HLS PIPELINE II=4
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-        fp64 norm2 = 0.0;
-        for (int i = 0; i < m; i++) {
-#pragma HLS LOOP_TRIPCOUNT min=2 max=128
-            norm2 += B_re[i][j]*B_re[i][j] + B_im[i][j]*B_im[i][j];
-        }
-        sv[j] = sqrt(norm2);
-    }
-
-    // Sort by descending singular value (bubble sort — small k ≤ 64)
-    static int idx[JACOBI_MAX];
-    for (int i = 0; i < k; i++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-        idx[i] = i;
-        sv[i] = (sv[i] > 0.0) ? sv[i] : 0.0;
-    }
-    for (int i = 0; i < k-1; i++) {
-#pragma HLS LOOP_TRIPCOUNT min=0 max=63
-        for (int j = i+1; j < k; j++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=63
-            if (sv[j] > sv[i]) {
-                fp64 tmp = sv[i]; sv[i] = sv[j]; sv[j] = tmp;
-                int ti = idx[i]; idx[i] = idx[j]; idx[j] = ti;
-            }
-        }
-    }
-
-    // Compute chi_new
-    fp64 sv_max = (sv[0] > 0.0) ? sv[0] : 1.0;
-    int cnt = 0;
-    for (int j = 0; j < k; j++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-        if (sv[j] > 1e-12 * sv_max) cnt++;
-    }
-    int cn = (cnt < chi_max) ? cnt : chi_max;
-    if (cn < 1) cn = 1;
-    *chi_new = cn;
-
-    // Build U, S, Vh in sorted order
-    for (int j = 0; j < cn; j++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-        int oj = idx[j];
-        fp64 col_norm = (sv[j] > 1e-30) ? sv[j] : 1.0;
-        S[j] = sv[j];
-        for (int i = 0; i < m; i++) {
-#pragma HLS PIPELINE II=4
-#pragma HLS LOOP_TRIPCOUNT min=2 max=128
-            U_re[i][j] = B_re[i][oj] / col_norm;
-            U_im[i][j] = B_im[i][oj] / col_norm;
-        }
-        for (int i = 0; i < n; i++) {
-#pragma HLS PIPELINE II=4
-#pragma HLS LOOP_TRIPCOUNT min=2 max=128
-            // Vh = V^H: Vh[j,i] = conj(V[i,j])
-            Vh_re[j][i] =  V_re[i][oj];
-            Vh_im[j][i] = -V_im[i][oj];
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Full 2q operation: contract + apply gate + Jacobi SVD + split sites
-// ─────────────────────────────────────────────────────────────────────────────
-
-static void apply_2q_full(
-        fp64 *b0, fp64 *b1, fp64 *b2, fp64 *b3,
-        fp64 *b4, fp64 *b5, fp64 *b6, fp64 *b7,
-        int chi_l, int chi_m, int chi_r,
-        int offset_i, int offset_j,
-        int chi_max,
-        fp64 gmat[32]) {
-#pragma HLS INLINE off
-
-    static fp64 M_re[JACOBI_MAX*2][JACOBI_MAX*2];
-    static fp64 M_im[JACOBI_MAX*2][JACOBI_MAX*2];
-    static fp64 U_re[JACOBI_MAX*2][JACOBI_MAX];
-    static fp64 U_im[JACOBI_MAX*2][JACOBI_MAX];
-    static fp64 SV[JACOBI_MAX];
-    static fp64 Vh_re[JACOBI_MAX][JACOBI_MAX*2];
-    static fp64 Vh_im[JACOBI_MAX][JACOBI_MAX*2];
-#pragma HLS BIND_STORAGE variable=M_re  type=ram_2p impl=uram
-#pragma HLS BIND_STORAGE variable=M_im  type=ram_2p impl=uram
-#pragma HLS BIND_STORAGE variable=U_re  type=ram_2p impl=uram
-#pragma HLS BIND_STORAGE variable=U_im  type=ram_2p impl=uram
-#pragma HLS BIND_STORAGE variable=Vh_re type=ram_2p impl=uram
-#pragma HLS BIND_STORAGE variable=Vh_im type=ram_2p impl=uram
-
-    int m = chi_l * 2;
-    int n = chi_r * 2;
-    if (m > JACOBI_MAX*2 || n > JACOBI_MAX*2) return;  // guard
-
-    // Step 1: Contract + apply gate → M[chi_l*2, 2*chi_r]
-    // M[(a*2+s0), (s1*chi_r+d)] = sum_{b,p,q} G[s0,s1,p,q] * A_i[a,p,b] * A_j[b,q,d]
-LOOP_A_2Q:
-    for (int a = 0; a < chi_l; a++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-LOOP_S0:
-        for (int s0 = 0; s0 < 2; s0++) {
-LOOP_D_2Q:
-            for (int d = 0; d < chi_r; d++) {
-#pragma HLS PIPELINE II=16
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-                int s1 = 0;
-                fp64 sum0_re = 0.0, sum0_im = 0.0;
-                fp64 sum1_re = 0.0, sum1_im = 0.0;
-LOOP_B_2Q:
-                for (int b = 0; b < chi_m; b++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-LOOP_P_2Q:
-                    for (int p = 0; p < 2; p++) {
-                        int gi_amp = offset_i + a*2*chi_m + p*chi_m + b;
-                        fp64 air = read_re(b0,b1,b2,b3,b4,b5,b6,b7, gi_amp);
-                        fp64 aii = read_im(b0,b1,b2,b3,b4,b5,b6,b7, gi_amp);
-LOOP_Q_2Q:
-                        for (int q = 0; q < 2; q++) {
-                            int gj_amp = offset_j + b*2*chi_r + q*chi_r + d;
-                            fp64 ajr = read_re(b0,b1,b2,b3,b4,b5,b6,b7, gj_amp);
-                            fp64 aji = read_im(b0,b1,b2,b3,b4,b5,b6,b7, gj_amp);
-
-                            // G[s0, 0, p, q] entry
-                            int gidx0 = (s0*2+0)*8 + (p*2+q)*2;
-                            fp64 gr0 = gmat[gidx0],  gi0 = gmat[gidx0+1];
-                            fp64 prod_re0 = gr0*air - gi0*aii;
-                            fp64 prod_im0 = gr0*aii + gi0*air;
-                            sum0_re += prod_re0*ajr - prod_im0*aji;
-                            sum0_im += prod_re0*aji + prod_im0*ajr;
-
-                            // G[s0, 1, p, q] entry
-                            int gidx1 = (s0*2+1)*8 + (p*2+q)*2;
-                            fp64 gr1 = gmat[gidx1],  gi1 = gmat[gidx1+1];
-                            fp64 prod_re1 = gr1*air - gi1*aii;
-                            fp64 prod_im1 = gr1*aii + gi1*air;
-                            sum1_re += prod_re1*ajr - prod_im1*aji;
-                            sum1_im += prod_re1*aji + prod_im1*ajr;
-                        }
-                    }
-                }
-                M_re[a*2+s0][0*chi_r+d] = sum0_re;
-                M_im[a*2+s0][0*chi_r+d] = sum0_im;
-                M_re[a*2+s0][1*chi_r+d] = sum1_re;
-                M_im[a*2+s0][1*chi_r+d] = sum1_im;
-            }
-        }
-    }
-
-    // Step 2: Jacobi SVD on M
-    int chi_new = 1;
-    jacobi_svd(M_re, M_im, m, n, U_re, U_im, SV, Vh_re, Vh_im, &chi_new, chi_max);
-
-    // Normalize S: sqrt_S[k] = sqrt(SV[k] / norm)
-    fp64 norm2 = 0.0;
-    for (int k = 0; k < chi_new; k++) {
-        norm2 += SV[k] * SV[k];
-    }
-    fp64 norm_sv = sqrt(norm2 > 0.0 ? norm2 : 1.0);
-    for (int k = 0; k < chi_new; k++) {
-        SV[k] /= norm_sv;
-    }
-
-    // Step 3: Write A_i[chi_l, 2, chi_new] = (U * sqrt_S)
-    // A_i[a, s0, k] = U[a*2+s0, k] * sqrt(SV[k])
-LOOP_WRITE_I:
-    for (int a = 0; a < chi_l; a++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-        for (int s0 = 0; s0 < 2; s0++) {
-            for (int k = 0; k < chi_new; k++) {
-#pragma HLS PIPELINE II=8
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-                int g = offset_i + a*2*chi_new + s0*chi_new + k;
-                fp64 sqrtS = sqrt(SV[k] > 0.0 ? SV[k] : 0.0);
-                write_amp(b0,b1,b2,b3,b4,b5,b6,b7, g,
-                          U_re[a*2+s0][k]*sqrtS, U_im[a*2+s0][k]*sqrtS);
-            }
-        }
-    }
-
-    // Step 4: Write A_j[chi_new, 2, chi_r] = (sqrt_S * Vh)
-    // A_j[k, s1, d] = sqrt(SV[k]) * Vh[k, s1*chi_r+d]
-LOOP_WRITE_J:
-    for (int k = 0; k < chi_new; k++) {
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-        for (int s1 = 0; s1 < 2; s1++) {
-            for (int d = 0; d < chi_r; d++) {
-#pragma HLS PIPELINE II=8
-#pragma HLS LOOP_TRIPCOUNT min=1 max=64
-                int g = offset_j + k*2*chi_r + s1*chi_r + d;
-                fp64 sqrtS = sqrt(SV[k] > 0.0 ? SV[k] : 0.0);
-                int vidx = s1*chi_r + d;
-                write_amp(b0,b1,b2,b3,b4,b5,b6,b7, g,
-                          sqrtS*Vh_re[k][vidx], sqrtS*Vh_im[k][vidx]);
-            }
-        }
-    }
-}
+// (jacobi_svd and apply_2q_full removed — SVD runs on host CPU via scipy)
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Top-level kernel (extern "C" prevents C++ name mangling with XRT)
@@ -804,8 +488,8 @@ EXEC_LOOP:
         int site_j  = gbuf[base + 2];
         int chi_l   = gbuf[base + 3];
         int chi_m   = gbuf[base + 4];
-        int chi_r   = gbuf[base + 5];
-        // chi_new stored in [6] — used for writing back but computed by SVD
+        int chi_r     = gbuf[base + 5];
+        int theta_off = gbuf[base + 6];  // dedicated HBM workspace for theta output
         fp64 p0 = extract_f32(gbuf[base + 7]);
         fp64 p1 = extract_f32(gbuf[base + 8]);
         fp64 p2 = extract_f32(gbuf[base + 9]);
@@ -829,17 +513,15 @@ EXEC_LOOP:
                           bank4, bank5, bank6, bank7,
                           chi_l, chi_r, off_i, mat);
         }
-        else if (opcode == 100) {
-            // 2q contract + gate only (host does SVD)
+        else if (opcode == 100 || opcode == 102) {
+            // 2q: contract + apply gate → write theta to HBM workspace.
+            // Host reads theta_off, runs scipy SVD, writes back A_i and A_j.
+            // opcode 102 (formerly on-FPGA Jacobi SVD) is now identical to 100:
+            // all SVD is handled by the host to keep FP divide off the FPGA.
             contract_and_apply_2q(bank0, bank1, bank2, bank3,
                                   bank4, bank5, bank6, bank7,
-                                  chi_l, chi_m, chi_r, off_i, off_j, gmat);
-        }
-        else if (opcode == 102) {
-            // 2q full: contract + gate + Jacobi SVD + split (chi ≤ 64)
-            apply_2q_full(bank0, bank1, bank2, bank3,
-                          bank4, bank5, bank6, bank7,
-                          chi_l, chi_m, chi_r, off_i, off_j, chi_max, gmat);
+                                  chi_l, chi_m, chi_r, off_i, off_j,
+                                  theta_off, gmat);
         }
         // opcode 110 (left-normalize) is handled by host LAPACK QR — no-op here
     }
