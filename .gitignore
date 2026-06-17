@@ -29,6 +29,12 @@ build/
 # Test outputs
 test_results.txt
 benchmark_results.txt
+verification_results.json
+
+# Vitis/Xilinx IP cache and temp dirs
+.ipcache/
+v++_*.backup.log
+xcd.log
 
 # Jupyter
 .ipynb_checkpoints/

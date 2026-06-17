@@ -243,6 +243,8 @@ class MPSState:
         return self.sites[i].shape[2]
 
     def max_bond(self) -> int:
+        if self.n <= 1:
+            return 1
         return max(self.chi_r(i) for i in range(self.n - 1))
 
     def bond_dims(self) -> List[int]:

@@ -208,7 +208,11 @@ class _HBMAlloc:
 
     def alloc(self, n_amps: int) -> int:
         off = self._cursor
-        self._cursor += n_amps
+        # Round up to next multiple of NUM_HBM_BANKS so every site's g_offset
+        # is bank-aligned.  _hbm_write/_hbm_read assume g_offset % 8 == 0:
+        # local_index i maps to bank i%8, which only holds when g_offset%8 == 0.
+        n_padded = ((n_amps + NUM_HBM_BANKS - 1) // NUM_HBM_BANKS) * NUM_HBM_BANKS
+        self._cursor += n_padded
         return off
 
     def alloc_site(self, chi_l: int, chi_r: int) -> int:
@@ -251,19 +255,23 @@ def _hbm_read(banks: list, g_offset: int,
     """Read n_amps complex128 values from HBM (8-bank interleaved)."""
     amps_per_bank = (n_amps + NUM_HBM_BANKS - 1) // NUM_HBM_BANKS
     result = np.zeros(n_amps, dtype=np.complex128)
+    # g_offset is always a multiple of 8 (enforced by _HBMAlloc.alloc padding),
+    # so slot_start = g_offset // 8 is the starting slot index in every bank.
+    byte_off  = (g_offset // NUM_HBM_BANKS) * 2 * 8  # = slot_start * 16
+    f64_start = byte_off // 8                          # index into float64 view
 
     for bid in range(NUM_HBM_BANKS):
         idxs = np.arange(bid, n_amps, NUM_HBM_BANKS)
         if len(idxs) == 0:
             continue
-        byte_off = (g_offset // NUM_HBM_BANKS) * 2 * 8
-        n_bytes  = len(idxs) * 2 * 8
+        n_bytes = len(idxs) * 2 * 8
         banks[bid].sync(
             xrt_mod.xclBOSyncDirection.XCL_BO_SYNC_BO_FROM_DEVICE,
             n_bytes, byte_off
         )
-        raw = np.frombuffer(banks[bid].map(), dtype=np.float64,
-                            count=amps_per_bank * 2).copy()
+        # Read starting at byte_off (slot_start), not from byte 0.
+        raw_all = np.frombuffer(banks[bid].map(), dtype=np.float64)
+        raw = raw_all[f64_start : f64_start + amps_per_bank * 2].copy()
         v = min(len(idxs), amps_per_bank)
         result[idxs[:v]] = raw[:v * 2:2] + 1j * raw[1:v * 2:2]
 
@@ -307,6 +315,11 @@ def _build_1q_instr(opcode: int, site: int,
     for k in range(4):
         instr[INSTR_WORDS + k * 2]     = _f32_bits(g2[k].real)
         instr[INSTR_WORDS + k * 2 + 1] = _f32_bits(g2[k].imag)
+    # The compiled xclbin reads p0,p1,p2 from gbuf[base+INSTR_WORDS+{0,1,2}]
+    # (words 12,13,14) not from the header words 7,8,9.  Override those slots.
+    ps = list((params or [])[:3]) + [0.0, 0.0, 0.0]
+    for k in range(3):
+        instr[INSTR_WORDS + k] = _f32_bits(ps[k])
     return instr
 
 
@@ -500,13 +513,22 @@ def _run_circuit_fpga(circuit, shots: int,
     nq  = circuit.num_qubits
     mps = MPSState(nq, chi_max, svd_cutoff)
 
+    # ── Compile circuit first (needed to size BOs for gate-phase allocations) ─
+    gate_list, measured_qubits = compile_circuit(circuit, nq)
+
     # ── HBM allocation ────────────────────────────────────────────────────────
     alloc = _HBMAlloc()
     site_offsets: List[int] = []
     for i in range(nq):
         site_offsets.append(alloc.alloc_site(mps.chi_l(i), mps.chi_r(i)))
     theta_off = alloc.alloc(chi_max * 2 * chi_max * 2)   # workspace
-    total_amps = alloc.total
+    init_amps = alloc.total
+
+    # Each 2Q gate creates 2 new padded site allocations (worst-case chi_max²).
+    max_site_amps = ((chi_max * 2 * chi_max + NUM_HBM_BANKS - 1)
+                     // NUM_HBM_BANKS) * NUM_HBM_BANKS
+    n_2q = sum(1 for g in gate_list if g['type'] == '2q')
+    total_amps = init_amps + n_2q * 2 * max_site_amps
 
     # ── Allocate HBM BOs (one per bank, interleaved) ─────────────────────────
     amps_per_bank = (total_amps + NUM_HBM_BANKS - 1) // NUM_HBM_BANKS
@@ -526,9 +548,6 @@ def _run_circuit_fpga(circuit, shots: int,
     for i in range(nq):
         _hbm_write(banks, mps.sites[i], site_offsets[i],
                    mps.chi_l(i) * 2 * mps.chi_r(i), xrt_mod)
-
-    # ── Compile circuit ───────────────────────────────────────────────────────
-    gate_list, measured_qubits = compile_circuit(circuit, nq)
 
     # ── Execute gate list ─────────────────────────────────────────────────────
     pending_1q: list = []
