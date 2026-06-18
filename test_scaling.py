@@ -92,6 +92,9 @@ CIRCUIT_FAMILIES = {
     "Brickwall": (_circuit_brickwall,   "Ry+CX layers  (bond up to χ_max)"),
 }
 
+from qcnn_circuits import QCNN_FAMILIES
+CIRCUIT_FAMILIES.update(QCNN_FAMILIES)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  Per-run timeout via SIGALRM (Linux only)
@@ -388,7 +391,7 @@ def _main() -> int:
                     help="per-run timeout in seconds (default 60)")
     ap.add_argument("--seed",     type=int, default=42)
     ap.add_argument("--families", nargs="+",
-                    default=["GHZ", "1Q-Rots", "Brickwall"],
+                    default=list(CIRCUIT_FAMILIES.keys()),
                     choices=list(CIRCUIT_FAMILIES.keys()),
                     help="circuit families to benchmark")
     ap.add_argument("--max-qubits", type=int, default=500,

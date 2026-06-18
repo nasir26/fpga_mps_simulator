@@ -162,6 +162,9 @@ FAMILIES = {
     "Brickwall": (circ_brickwall,  "Ry+CX, depth 4 (chi up to chi_max)"),
 }
 
+from qcnn_circuits import QCNN_FAMILIES
+FAMILIES.update(QCNN_FAMILIES)
+
 
 # =============================================================================
 #  Hardware setup
@@ -333,10 +336,11 @@ def measure(args) -> dict:
               f"-> FPGA load-bearing: {'YES' if load_bearing else 'NO'}")
 
     # -- (D) chi sweep at fixed N (real difficulty axis) --------------------
-    print(f"\n  [chi-sweep] fixed N={args.chi_sweep_nq}, growing entanglement")
+    print(f"\n  [chi-sweep] fixed N={args.chi_sweep_nq}, growing entanglement (QCNN-Generic)")
     print("            chi_max | total  fpga  svd   samp | bond  fpga%")
+    from qcnn_circuits import circ_qcnn_generic
     for chi in args.chi_list:
-        qc = circ_random_entangling(args.chi_sweep_nq, depth=args.chi_sweep_depth)
+        qc = circ_qcnn_generic(args.chi_sweep_nq)
         r = instrumented_run(fmps, cpu_ref, xrt, dev, kern, qc,
                             args.shots, chi, args.seed)
         r.pop("counts", None)
@@ -486,7 +490,7 @@ def main():
     ap.add_argument("--qubits", type=int, nargs="+",
                     default=[2, 4, 8, 16, 32, 64, 128, 200, 300, 500])
     ap.add_argument("--families", nargs="+",
-                    default=["GHZ", "1Q-Rots", "Brickwall"],
+                    default=list(FAMILIES.keys()),
                     choices=list(FAMILIES.keys()))
     ap.add_argument("--chi-list", type=int, nargs="+",
                     default=[2, 4, 8, 16, 32, 64])
