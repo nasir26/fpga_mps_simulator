@@ -235,3 +235,25 @@ fpga_mps_simulator/
 ## License
 
 MIT License — Copyright (c) 2026 Nasir Ali, C-DAC Noida. See [LICENSE](LICENSE).
+
+---
+
+## Citation
+
+If you use this work in your research, please cite:
+
+```bibtex
+@misc{nasirali_fpga_mps_simulator,
+  author    = {Nasir Ali},
+  title     = {fpga mps simulator},
+  year      = {2026},
+  publisher = {GitHub},
+  url       = {https://github.com/nasir26/fpga_mps_simulator},
+  note      = {Centre for Development of Advanced Computing (C-DAC), Noida, India}
+}
+```
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.\
+© 2026 Nasir Ali, C-DAC Noida. All rights reserved.
