@@ -1,0 +1,12 @@
+{
+  "1Q-Rots": {
+    "max_ok_qubits": 4000,
+    "first_fail_qubits": null,
+    "reason": "reached safety cap (4000 qubits) with no failure"
+  },
+  "GHZ": {
+    "max_ok_qubits": 2000,
+    "first_fail_qubits": 2062,
+    "reason": "RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted"
+  }
+}

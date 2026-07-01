@@ -1,0 +1,30 @@
+family,nq,phase,elapsed,bond,throughput,status,mode,error
+1Q-Rots,2,coarse,1.2247466938570142,1,1.6329907319051677,ok,shots_fpga,
+1Q-Rots,4,coarse,0.21051003085449338,1,19.00146982907831,ok,shots_fpga,
+1Q-Rots,8,coarse,0.4180575702339411,1,19.136120404477488,ok,shots_fpga,
+1Q-Rots,16,coarse,0.8363419291563332,1,19.130931311957696,ok,shots_fpga,
+1Q-Rots,32,coarse,1.6331025091931224,1,19.59460586207197,ok,shots_fpga,
+1Q-Rots,64,coarse,3.237463633995503,1,19.768561823508314,ok,shots_fpga,
+1Q-Rots,128,coarse,6.547489032149315,1,19.549479101300918,ok,shots_fpga,
+1Q-Rots,256,coarse,12.996380797121674,1,19.69779156183979,ok,shots_fpga,
+1Q-Rots,512,coarse,25.89998339023441,1,19.76835244585715,ok,shots_fpga,
+1Q-Rots,1000,coarse,50.63584975525737,1,19.748853921349923,ok,shots_fpga,
+1Q-Rots,2000,coarse,101.41783807985485,1,19.720396706003836,ok,shots_fpga,
+1Q-Rots,4000,coarse,203.11912493407726,1,19.6928772773032,ok,shots_fpga,
+GHZ,2,coarse,0.1232280689291656,2,16.230068501273415,ok,shots_fpga,
+GHZ,4,coarse,0.21684403298422694,2,18.4464379533605,ok,shots_fpga,
+GHZ,8,coarse,0.41951991990208626,2,19.069416302966395,ok,shots_fpga,
+GHZ,16,coarse,0.8181626698933542,2,19.556013234000968,ok,shots_fpga,
+GHZ,32,coarse,1.636946561280638,2,19.5485917237062,ok,shots_fpga,
+GHZ,64,coarse,3.2603592737577856,2,19.629738512294583,ok,shots_fpga,
+GHZ,128,coarse,6.513190085999668,2,19.652428120459824,ok,shots_fpga,
+GHZ,256,coarse,12.974908526986837,2,19.730389579821637,ok,shots_fpga,
+GHZ,512,coarse,25.94106483925134,2,19.737046384668623,ok,shots_fpga,
+GHZ,1000,coarse,51.013335675001144,2,19.602717343771847,ok,shots_fpga,
+GHZ,2000,coarse,102.66510211536661,2,19.48081635133002,ok,shots_fpga,
+GHZ,4000,coarse,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ,3000,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ,2500,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ,2250,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ,2125,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ,2062,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
