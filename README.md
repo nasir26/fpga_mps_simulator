@@ -82,6 +82,74 @@ on the U55C. 9 masters routes successfully.
 
 Working tensor (2q theta): chi × 4 × chi × 16 B = 4 MB at chi=256.
 
+Note: the table above is a theoretical HBM-capacity estimate for a given
+`chi_max`. The empirically measured qubit ceilings below use the default
+`chi_max=64` and were reached for reasons other than raw tensor size (a 60s
+benchmark timeout or an XRT allocation error) — see below for the actual
+numbers.
+
+---
+
+## Benchmark Results
+
+Per-family qubit ceilings, discovered with
+[`benchmarks/bench_ceiling.py`](benchmarks/bench_ceiling.py) (coarse
+doubling + bisection — see [benchmarks/README.md](benchmarks/README.md) for
+the method and how to reproduce). Two runs exist:
+
+- **9-family run** (`chi_max=64`, 60s per-attempt timeout) — [`benchmarks/results/`](benchmarks/results/)
+- **High-capacity re-run** (300s timeout, 4000-qubit cap), for the two families still climbing when the first run's timeout cut in — [`benchmarks/results_highcap/`](benchmarks/results_highcap/)
+
+### Per-family ceilings (9-family run)
+
+| Family | max_ok qubits | first_fail qubits | Limiting factor |
+|---|---:|---:|---|
+| 1Q-Rots | 1187 | 1250 | 60s timeout (not a hardware wall — see high-cap below) |
+| GHZ | 1125 | 1187 | 60s timeout (not a hardware wall — see high-cap below) |
+| Brickwall | 1000 | 1062 | XRT memory wall |
+| GHZ-Ladder | 1000 | 1062 | XRT memory wall |
+| W-State | 634 | 695 | XRT memory wall |
+| Random-Brickwork | 512 | 573 | XRT memory wall |
+| TFIM-Trotter | 320 | 384 | XRT memory wall |
+| QCNN-Cluster | 64 | 128 | XRT memory wall |
+| QCNN-Generic | 0 | 2 | pre-existing host bug, not a hardware ceiling |
+
+"XRT memory wall" is the literal error from every family above except the
+two timeout-bound ones: `RuntimeError: Card 0 error: failed to allocate
+userptr bo: Operation not permitted`. QCNN-Generic's failure is a host-side
+bug (`only size-1 arrays can be converted to Python scalars`), unrelated to
+card capacity.
+
+### High-capacity re-run
+
+| Family | max_ok qubits | first_fail qubits | Limiting factor |
+|---|---:|---:|---|
+| 1Q-Rots | **4000** | — | hit the 4000-qubit safety cap with **no failure** — true ceiling still open |
+| GHZ | **2000** | 2062 | XRT memory wall (same allocation error) |
+
+So the correct headline numbers are **1Q-Rots ≥ 4000 qubits** and **GHZ =
+2000 qubits** — not the 60s-timeout-bound 1187 / 1125 from the 9-family run,
+and well past any ~500-1000 qubit figures quoted elsewhere for this project.
+
+### Numerical exactness
+
+All runs above used the default `chi_max=64`. Across every attempt in both
+`benchmarks/results/summary.csv` and `benchmarks/results_highcap/summary.csv`,
+the largest bond dimension actually reached was 16 (main run) and 2
+(high-cap run) — far below `chi_max=64`. No run was bond-dimension-truncated,
+so every reported result is an exact MPS simulation.
+
+### Plots
+
+![Combined execution time](benchmarks/results/combined_time.png)
+![Per-family ceilings](benchmarks/results/ceilings_bar.png)
+![High-cap combined time](benchmarks/results_highcap/combined_time.png)
+![High-cap ceilings](benchmarks/results_highcap/ceilings_bar.png)
+
+Per-family time/metrics plots for every family are in
+[`benchmarks/results/`](benchmarks/results/) (e.g. `GHZ_time.png`,
+`GHZ_metrics.png`, `combined_bond.png`, `combined_throughput.png`).
+
 ---
 
 ## Installation

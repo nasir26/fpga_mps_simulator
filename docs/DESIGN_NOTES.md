@@ -157,9 +157,72 @@ distribute statevector helper.
 Working tensors (theta for 2q gates): chi × 4 × chi × 16 B = 4 MB at chi=256, 16 MB at chi=512.
 These fit in URAM (< 34 MB available on U55C).
 
+Note: this table is a theoretical HBM-capacity estimate per `chi_max`, not a
+measured ceiling. See section 4 below for the actual empirically measured
+per-family qubit ceilings at the default `chi_max=64` — they are bounded by
+benchmark timeout / XRT allocation limits, not by this memory math, and go
+well past 500 qubits.
+
 ---
 
-## 4. Known Limitations and Future Work
+## 4. Empirical Benchmark Results (phase10 / phase11)
+
+Per-family qubit ceilings were measured directly with
+`benchmarks/bench_ceiling.py` (coarse doubling + bisection; see
+`benchmarks/README.md`). Two runs:
+
+| Family | max_ok qubits | first_fail qubits | Failure mode | Run |
+|---|---:|---:|---|---|
+| 1Q-Rots | 1187 | 1250 | 60s timeout | main |
+| 1Q-Rots | **4000** | none | safety cap reached, no failure | high-cap |
+| GHZ | 1125 | 1187 | 60s timeout | main |
+| GHZ | **2000** | 2062 | XRT memory wall | high-cap |
+| Brickwall | 1000 | 1062 | XRT memory wall | main |
+| GHZ-Ladder | 1000 | 1062 | XRT memory wall | main |
+| W-State | 634 | 695 | XRT memory wall | main |
+| Random-Brickwork | 512 | 573 | XRT memory wall | main |
+| TFIM-Trotter | 320 | 384 | XRT memory wall | main |
+| QCNN-Cluster | 64 | 128 | XRT memory wall | main |
+| QCNN-Generic | 0 | 2 | host bug, not a hardware ceiling | main |
+
+`XRT memory wall` = `RuntimeError: Card 0 error: failed to allocate userptr
+bo: Operation not permitted`, raised by the XRT driver, not the HLS kernel.
+
+**Why 1Q-Rots and GHZ needed a second run:** in the main 9-family run (60s
+per-attempt timeout), both were still passing when the coarse-doubling loop
+hit the timeout bound — 1187 / 1125 reflects "how far it got in 60s," not a
+hardware limit. Every other family failed with the XRT allocation error well
+before 60s mattered, so their main-run ceilings are the real hardware wall.
+Re-run with `--timeout 300 --max-cap 4000`: GHZ hit the same XRT allocation
+error at 2062 (ceiling 2000); 1Q-Rots reached the 4000-qubit safety cap with
+no failure at all — its true ceiling is still open above 4000.
+
+**Numerical exactness:** default `chi_max` is 64. The maximum bond dimension
+actually observed in any attempt, across both `benchmarks/results/summary.csv`
+and `benchmarks/results_highcap/summary.csv`, was 16 (main) / 2 (high-cap) —
+far under 64. No run was bond-dimension-truncated; every result above is an
+exact MPS simulation.
+
+### Changelog
+
+**2026-07-01 — phase11 (high-capacity re-run):** re-ran GHZ and 1Q-Rots with
+`--timeout 300 --max-cap 4000` to remove the 60s-timeout artifact from their
+main-run ceilings. Established GHZ = 2000 (XRT memory wall) and 1Q-Rots ≥
+4000 (safety cap, no failure — true ceiling still unknown). Superseded all
+prior ~500-1000 qubit ceiling figures for this project.
+
+**2026-07-01 — phase10 (per-family ceiling discovery):** added
+`bench_ceiling.py` (coarse-doubling + bisection ceiling discovery per
+circuit family), replacing the old fixed-qubit-list sweep in
+`test_scaling.py` which breaks down once families have very different
+limits. Added four new stress-test families (W-State, GHZ-Ladder,
+TFIM-Trotter, Random-Brickwork). Ran the full 9-family sweep (60s timeout),
+establishing the table above except the two timeout-bound entries later
+corrected in phase11.
+
+---
+
+## 5. Known Limitations and Future Work
 
 - Jacobi SVD in kernel limited to chi ≤ CHI_MAX_SVD=64; larger chi uses host LAPACK round-trip.
 - Mode B (distributed chain) shipped for nearest-neighbor circuits only; arbitrary non-adjacent
