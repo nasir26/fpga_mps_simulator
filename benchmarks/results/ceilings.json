@@ -1,0 +1,47 @@
+{
+  "GHZ": {
+    "max_ok_qubits": 1125,
+    "first_fail_qubits": 1187,
+    "reason": "exceeded 60s per-run timeout"
+  },
+  "1Q-Rots": {
+    "max_ok_qubits": 1187,
+    "first_fail_qubits": 1250,
+    "reason": "exceeded 60s per-run timeout"
+  },
+  "Brickwall": {
+    "max_ok_qubits": 1000,
+    "first_fail_qubits": 1062,
+    "reason": "RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted"
+  },
+  "QCNN-Cluster": {
+    "max_ok_qubits": 64,
+    "first_fail_qubits": 128,
+    "reason": "RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted"
+  },
+  "QCNN-Generic": {
+    "max_ok_qubits": 0,
+    "first_fail_qubits": 2,
+    "reason": "RuntimeError: Card 0 error: only size-1 arrays can be converted to Python scalars"
+  },
+  "W-State": {
+    "max_ok_qubits": 634,
+    "first_fail_qubits": 695,
+    "reason": "RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted"
+  },
+  "GHZ-Ladder": {
+    "max_ok_qubits": 1000,
+    "first_fail_qubits": 1062,
+    "reason": "RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted"
+  },
+  "TFIM-Trotter": {
+    "max_ok_qubits": 320,
+    "first_fail_qubits": 384,
+    "reason": "RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted"
+  },
+  "Random-Brickwork": {
+    "max_ok_qubits": 512,
+    "first_fail_qubits": 573,
+    "reason": "RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted"
+  }
+}

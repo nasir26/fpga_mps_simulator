@@ -1,0 +1,106 @@
+family,nq,phase,elapsed,bond,throughput,status,mode,error
+GHZ,2,coarse,1.215221700258553,2,1.6457902287084538,ok,shots_fpga,
+GHZ,4,coarse,0.21226798137649894,2,18.844104391350548,ok,shots_fpga,
+GHZ,8,coarse,0.41880293982103467,2,19.102062663214845,ok,shots_fpga,
+GHZ,16,coarse,0.8411353919655085,2,19.021907950647847,ok,shots_fpga,
+GHZ,32,coarse,1.6717741671018302,2,19.141341354421606,ok,shots_fpga,
+GHZ,64,coarse,3.34144726395607,2,19.153377247746207,ok,shots_fpga,
+GHZ,128,coarse,6.5554928057827055,2,19.525610627943813,ok,shots_fpga,
+GHZ,256,coarse,13.054475854150951,2,19.610132406702434,ok,shots_fpga,
+GHZ,512,coarse,26.400340357795358,2,19.39368936388804,ok,shots_fpga,
+GHZ,1000,coarse,51.59687307383865,2,19.381019438308435,ok,shots_fpga,
+GHZ,2000,coarse,60.0,,,timeout,,exceeded 60s per-run timeout
+GHZ,1500,bisect,60.0,,,timeout,,exceeded 60s per-run timeout
+GHZ,1250,bisect,60.0,,,timeout,,exceeded 60s per-run timeout
+GHZ,1125,bisect,57.90356732113287,2,19.428854767457697,ok,shots_fpga,
+GHZ,1187,bisect,60.0,,,timeout,,exceeded 60s per-run timeout
+1Q-Rots,2,coarse,1.2298537660390139,1,1.6262095992447896,ok,shots_fpga,
+1Q-Rots,4,coarse,0.2134095123037696,1,18.743306972682422,ok,shots_fpga,
+1Q-Rots,8,coarse,0.4130611070431769,1,19.36759443963764,ok,shots_fpga,
+1Q-Rots,16,coarse,0.8242850829847157,1,19.410760100212418,ok,shots_fpga,
+1Q-Rots,32,coarse,1.6231859540566802,1,19.714315491718818,ok,shots_fpga,
+1Q-Rots,64,coarse,3.201215537264943,1,19.992405776800762,ok,shots_fpga,
+1Q-Rots,128,coarse,6.426387233659625,1,19.917878482263205,ok,shots_fpga,
+1Q-Rots,256,coarse,12.747822088655084,1,20.08186168740361,ok,shots_fpga,
+1Q-Rots,512,coarse,25.913097956217825,1,19.75834772303425,ok,shots_fpga,
+1Q-Rots,1000,coarse,50.10416730120778,1,19.95841970565779,ok,shots_fpga,
+1Q-Rots,2000,coarse,60.0,,,timeout,,exceeded 60s per-run timeout
+1Q-Rots,1500,bisect,60.0,,,timeout,,exceeded 60s per-run timeout
+1Q-Rots,1250,bisect,60.0,,,timeout,,exceeded 60s per-run timeout
+1Q-Rots,1125,bisect,57.15489528281614,1,19.68335335815471,ok,shots_fpga,
+1Q-Rots,1187,bisect,59.44112070417032,1,19.969340852564404,ok,shots_fpga,
+Brickwall,2,coarse,0.11928770691156387,2,16.766186992618916,ok,shots_fpga,
+Brickwall,4,coarse,0.2218305659480393,4,18.03178016927092,ok,shots_fpga,
+Brickwall,8,coarse,0.4506872659549117,4,17.75066793389354,ok,shots_fpga,
+Brickwall,16,coarse,0.8957534967921674,4,17.86205698029479,ok,shots_fpga,
+Brickwall,32,coarse,1.7434733412228525,4,18.3541665039487,ok,shots_fpga,
+Brickwall,64,coarse,3.459651378914714,4,18.498973737659277,ok,shots_fpga,
+Brickwall,128,coarse,6.862943211570382,4,18.650890158059603,ok,shots_fpga,
+Brickwall,256,coarse,13.749009906314313,4,18.619522550669668,ok,shots_fpga,
+Brickwall,512,coarse,27.285002570599318,4,18.76488736532869,ok,shots_fpga,
+Brickwall,1000,coarse,53.67491231393069,4,18.63067785097176,ok,shots_fpga,
+Brickwall,2000,coarse,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+Brickwall,1500,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+Brickwall,1250,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+Brickwall,1125,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+Brickwall,1062,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+QCNN-Cluster,2,coarse,1.189722577109933,2,1.6810641728413596,ok,shots_fpga,
+QCNN-Cluster,4,coarse,0.2539719413034618,1,15.749771330922522,ok,shots_fpga,
+QCNN-Cluster,8,coarse,0.6030901367776096,2,13.265015479684445,ok,shots_fpga,
+QCNN-Cluster,16,coarse,1.3036623722873628,4,12.2731163682564,ok,shots_fpga,
+QCNN-Cluster,32,coarse,3.159714807290584,12,10.127496293704938,ok,shots_fpga,
+QCNN-Cluster,64,coarse,6.407856696285307,12,9.987738963810065,ok,shots_fpga,
+QCNN-Cluster,128,coarse,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+QCNN-Generic,2,coarse,,,,hard_fail,,RuntimeError: Card 0 error: only size-1 arrays can be converted to Python scalars
+W-State,2,coarse,1.2570173796266317,2,1.5910678980381754,ok,shots_fpga,
+W-State,4,coarse,0.21937601501122117,2,18.233533870124308,ok,shots_fpga,
+W-State,8,coarse,0.4347098069265485,2,18.403081486845164,ok,shots_fpga,
+W-State,16,coarse,0.8955450472421944,2,17.866214602237537,ok,shots_fpga,
+W-State,32,coarse,1.744617992080748,2,18.342124261732884,ok,shots_fpga,
+W-State,64,coarse,3.4642687323503196,2,18.474317365263822,ok,shots_fpga,
+W-State,128,coarse,6.972097844816744,2,18.358893241172574,ok,shots_fpga,
+W-State,256,coarse,13.801978501025587,2,18.548065408229505,ok,shots_fpga,
+W-State,512,coarse,27.630079614929855,2,18.530529304857374,ok,shots_fpga,
+W-State,1000,coarse,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+W-State,756,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+W-State,634,bisect,34.888622955884784,2,18.172113035291382,ok,shots_fpga,
+W-State,695,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ-Ladder,2,coarse,1.2797733102925122,2,1.5627767698506454,ok,shots_fpga,
+GHZ-Ladder,4,coarse,0.22310665575787425,2,17.928644873512813,ok,shots_fpga,
+GHZ-Ladder,8,coarse,0.43322851695120335,2,18.466005091952614,ok,shots_fpga,
+GHZ-Ladder,16,coarse,0.8710376559756696,2,18.368895868316997,ok,shots_fpga,
+GHZ-Ladder,32,coarse,1.7041638819500804,2,18.77753679615736,ok,shots_fpga,
+GHZ-Ladder,64,coarse,3.346230036113411,2,19.12600129378281,ok,shots_fpga,
+GHZ-Ladder,128,coarse,6.705581516958773,2,19.088575640499066,ok,shots_fpga,
+GHZ-Ladder,256,coarse,13.309385655913502,2,19.234546703983778,ok,shots_fpga,
+GHZ-Ladder,512,coarse,26.831409743987024,2,19.082113272663218,ok,shots_fpga,
+GHZ-Ladder,1000,coarse,52.75410645501688,2,18.955870304668966,ok,shots_fpga,
+GHZ-Ladder,2000,coarse,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ-Ladder,1500,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ-Ladder,1250,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ-Ladder,1125,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+GHZ-Ladder,1062,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+TFIM-Trotter,2,coarse,1.3053667219355702,2,1.5321364995688278,ok,shots_fpga,
+TFIM-Trotter,4,coarse,0.24959465907886624,4,16.025983948382848,ok,shots_fpga,
+TFIM-Trotter,8,coarse,0.5164102660492063,8,15.491558797240716,ok,shots_fpga,
+TFIM-Trotter,16,coarse,1.0132609731517732,8,15.790601260632398,ok,shots_fpga,
+TFIM-Trotter,32,coarse,2.025882395915687,8,15.79558619222622,ok,shots_fpga,
+TFIM-Trotter,64,coarse,4.036020005121827,8,15.85720584109646,ok,shots_fpga,
+TFIM-Trotter,128,coarse,8.191501117311418,8,15.625951601165337,ok,shots_fpga,
+TFIM-Trotter,256,coarse,16.135375883895904,8,15.865759920443113,ok,shots_fpga,
+TFIM-Trotter,512,coarse,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+TFIM-Trotter,384,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+TFIM-Trotter,320,bisect,20.80923222284764,8,15.377789846982138,ok,shots_fpga,
+Random-Brickwork,2,coarse,0.12562265992164612,2,15.920694572519386,ok,shots_fpga,
+Random-Brickwork,4,coarse,0.24226848501712084,4,16.51060805418965,ok,shots_fpga,
+Random-Brickwork,8,coarse,0.47958724899217486,8,16.681010633230017,ok,shots_fpga,
+Random-Brickwork,16,coarse,1.0099117811769247,16,15.842967968305132,ok,shots_fpga,
+Random-Brickwork,32,coarse,1.8468443811871111,8,17.32685240075891,ok,shots_fpga,
+Random-Brickwork,64,coarse,3.8375413599424064,16,16.6773446842956,ok,shots_fpga,
+Random-Brickwork,128,coarse,7.615621360950172,16,16.807558298044103,ok,shots_fpga,
+Random-Brickwork,256,coarse,15.28001361573115,16,16.753911772463454,ok,shots_fpga,
+Random-Brickwork,512,coarse,30.187150875106454,16,16.960858681837905,ok,shots_fpga,
+Random-Brickwork,1000,coarse,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+Random-Brickwork,756,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+Random-Brickwork,634,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
+Random-Brickwork,573,bisect,,,,hard_fail,,RuntimeError: Card 0 error: failed to allocate userptr bo: Operation not permitted
